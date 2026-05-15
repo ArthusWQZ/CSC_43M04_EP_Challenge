@@ -126,17 +126,11 @@ def main(cfg: DictConfig) -> None:
     device = torch.device(device_str)
 
     train_dir = Path(cfg.dataset.train_dir).resolve()
-    all_samples = collect_video_samples(train_dir)
+    train_samples = collect_video_samples(train_dir)
 
     max_samples = cfg.dataset.get("max_samples")
     if max_samples is not None:
-        all_samples = all_samples[: int(max_samples)]
-
-    train_samples, val_samples = split_train_val(
-        all_samples,
-        val_ratio=float(cfg.dataset.val_ratio),
-        seed=int(cfg.dataset.seed),
-    )
+        train_samples = train_samples[: int(max_samples)]
 
     # Match normalization to pretrained flag (ImageNet stats when using pretrained weights).
     use_imagenet_norm = bool(cfg.model.pretrained)
@@ -153,11 +147,11 @@ def main(cfg: DictConfig) -> None:
         transform=train_transform,
         sample_list=train_samples,
     )
+    val_dir = Path(cfg.dataset.val_dir).resolve()
     val_dataset = VideoFrameDataset(
-        root_dir=train_dir,
+        root_dir=val_dir,
         num_frames=int(cfg.dataset.num_frames),
         transform=eval_transform,
-        sample_list=val_samples,
     )
 
     train_loader = DataLoader(

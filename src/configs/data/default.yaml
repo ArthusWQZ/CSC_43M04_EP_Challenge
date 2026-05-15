@@ -1,0 +1,8 @@
+# @package _global_
+dataset:
+  train_dir: /Data/aymeric.collin/train
+  val_dir:   /Data/aymeric.collin/val
+  test_dir:  /Data/aymeric.collin/test
+  num_frames: 8
+  val_ratio: 0.1
+  seed: 42
