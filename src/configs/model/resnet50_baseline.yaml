@@ -1,0 +1,5 @@
+# @package _global_
+model:
+  name: resnet50_baseline
+  pretrained: true
+  num_classes: ${num_classes}

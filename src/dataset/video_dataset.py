@@ -81,10 +81,14 @@ def collect_video_samples(root_dir: Path) -> List[Tuple[Path, int]]:
     return samples
 
 
-def _pick_frame_indices(num_available: int, num_frames: int) -> List[int]:
+def _pick_frame_indices(num_available: int, num_frames: int, sampling: str = "uniform") -> List[int]:
     """
-    Evenly spaced indices in [0, num_available - 1], inclusive.
-    If fewer frames than requested, indices may repeat (last frame duplicated).
+    Select frame indices for a clip.
+
+    sampling:
+        "uniform" — evenly spaced across [0, num_available-1] (sees full trajectory)
+        "last"    — the last num_frames frames (densely samples the most recent
+                    observable state, best for action anticipation)
     """
     if num_available <= 0:
         raise ValueError("Video has no frames.")
@@ -94,10 +98,17 @@ def _pick_frame_indices(num_available: int, num_frames: int) -> List[int]:
     if num_available == 1:
         return [0] * num_frames
 
-    # linspace in index space
+    if sampling == "last":
+        start = max(0, num_available - num_frames)
+        indices = list(range(start, num_available))
+        # pad by repeating the last frame if fewer than num_frames available
+        while len(indices) < num_frames:
+            indices.append(indices[-1])
+        return indices
+
+    # "uniform" — linspace across full available range
     positions = torch.linspace(0, num_available - 1, steps=num_frames)
-    indices = [int(round(float(x))) for x in positions]
-    return indices
+    return [int(round(float(x))) for x in positions]
 
 
 class VideoFrameDataset(Dataset):
@@ -107,17 +118,20 @@ class VideoFrameDataset(Dataset):
         num_frames: int,
         transform: Callable[[Image.Image], torch.Tensor],
         sample_list: Optional[List[Tuple[Path, int]]] = None,
+        sampling: str = "uniform",
     ) -> None:
         """
         Args:
             root_dir: Split root (contains class folders).
             num_frames: T in the returned tensor (T, C, H, W).
-            transform: Applied independently to each PIL image (typically Resize + ToTensor + Normalize).
+            transform: Applied independently to each PIL image.
             sample_list: Optional pre-built list of (video_dir, label). Use for train/val splits.
+            sampling: "uniform" (default) or "last" (dense from clip end, for anticipation).
         """
         self.root_dir = Path(root_dir)
         self.num_frames = num_frames
         self.transform = transform
+        self.sampling = sampling
 
         if sample_list is None:
             self.samples = collect_video_samples(self.root_dir)
@@ -130,7 +144,7 @@ class VideoFrameDataset(Dataset):
     def __getitem__(self, index: int) -> Tuple[torch.Tensor, torch.Tensor]:
         video_dir, label = self.samples[index]
         frame_paths = _list_frame_paths(video_dir)
-        indices = _pick_frame_indices(len(frame_paths), self.num_frames)
+        indices = _pick_frame_indices(len(frame_paths), self.num_frames, self.sampling)
 
         frames: List[torch.Tensor] = []
         for frame_index in indices:

@@ -1,0 +1,10 @@
+# @package _global_
+# ResNet18 frame encoder + temporal transformer for closed-world training
+model:
+  name: cnn_temporal_transformer
+  pretrained: false
+  num_classes: ${num_classes}
+  embed_dim: 256
+  num_heads: 4
+  num_layers: 2
+  dropout: 0.2

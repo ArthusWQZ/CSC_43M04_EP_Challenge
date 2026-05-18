@@ -1,0 +1,26 @@
+# @package _global_
+# MViT-v2-S (Kinetics-400 pretrained) — Track 2 (Open World)
+#
+# Two-phase training:
+#   Epochs 1–5  : backbone frozen, only head trained (fast, stabilises head first)
+#   Epochs 6–15 : last transformer block + norm unfrozen at lr*0.1
+defaults:
+  - override /model: mvit_open_world
+
+training:
+  epochs: 15
+  lr: 1.0e-4
+  batch_size: 8
+  weight_decay: 1.0e-4
+  label_smoothing: 0.1
+  scheduler: cosine
+  min_lr: 1.0e-6
+  grad_clip: 1.0
+  freeze_epochs: 5
+  checkpoint_path: mvit_open_world.pt
+
+dataset:
+  num_frames: 16
+  augmentation: strong
+  normalization: kinetics
+  sampling: last

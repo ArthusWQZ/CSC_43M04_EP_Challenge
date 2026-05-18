@@ -1,0 +1,35 @@
+# @package _global_
+# TSM + ResNet-18 — Track 1 (Closed World, trained from scratch)
+#
+# Task: action ANTICIPATION — only the first portion of each clip is available.
+#
+# Key choices:
+#   - sampling=last: densely sample the most recent frames of the partial clip,
+#     capturing the most action-developed observable state
+#   - temporal_pool=last: the last TSM frame accumulates context from all prior
+#     frames via forward-shifts — ideal for summarising partial-clip observations
+#   - No pretrained weights (closed world constraint)
+#   - Mixup (alpha=0.4) as a strong regulariser to prevent overfitting from scratch
+#   - Cosine LR with 5-epoch linear warmup (stabilises early training)
+#   - No horizontal flip: classes 018/019 are left↔right mirror images
+defaults:
+  - override /model: tsm_resnet18
+
+training:
+  epochs: 50
+  lr: 1.0e-3
+  batch_size: 96
+  weight_decay: 1.0e-4
+  label_smoothing: 0.1
+  scheduler: cosine
+  warmup_epochs: 5
+  min_lr: 1.0e-6
+  grad_clip: 1.0
+  use_compile: true
+  mixup_alpha: 0.4
+  checkpoint_path: tsm_closed_world.pt
+
+dataset:
+  num_frames: 8
+  augmentation: strong
+  sampling: last

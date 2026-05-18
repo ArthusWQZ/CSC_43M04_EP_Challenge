@@ -1,0 +1,6 @@
+# @package _global_
+model:
+  name: tsm_resnet18
+  pretrained: false
+  num_classes: ${num_classes}
+  temporal_pool: last   # "last" | "mean" — last is best for anticipation (see model docstring)

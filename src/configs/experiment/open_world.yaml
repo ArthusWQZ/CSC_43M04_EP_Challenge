@@ -1,0 +1,21 @@
+# @package _global_
+# ResNet50 (pretrained) + mean temporal pooling — Track 2 (Open World)
+defaults:
+  - override /model: resnet50_baseline
+
+training:
+  epochs: 15
+  lr: 7.0e-4
+  batch_size: 96
+  weight_decay: 5.0e-4
+  label_smoothing: 0.1
+  scheduler: cosine
+  min_lr: 1.0e-6
+  grad_clip: 1.0
+  lr_backbone_scale: 0.1
+  use_compile: true
+  checkpoint_path: resnet50_open_world.pt
+
+dataset:
+  num_frames: 8
+  augmentation: very_strong

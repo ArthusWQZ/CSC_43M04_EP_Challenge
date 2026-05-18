@@ -1,9 +1,19 @@
 # @package _global_
 training:
-  batch_size: 8
-  lr: 0.0001
-  epochs: 5
-  num_workers: 2
-  # Where to save the best checkpoint (by validation accuracy)
+  batch_size: 16
+  lr: 3.0e-4
+  weight_decay: 1.0e-4
+  epochs: 30
+  num_workers: 8
   checkpoint_path: ${hydra:runtime.cwd}/best_model.pt
   device: cuda
+  # Mixed-precision training — speeds up ResNet18 significantly on RTX GPUs
+  use_amp: true
+  # LR schedule after each epoch: null | cosine
+  scheduler: cosine
+  min_lr: 1.0e-6
+  # Max L2 norm for gradient clipping (0 = disabled)
+  grad_clip: 1.0
+  # Label smoothing for cross-entropy (reduces overconfidence)
+  label_smoothing: 0.1
+  use_compile: false

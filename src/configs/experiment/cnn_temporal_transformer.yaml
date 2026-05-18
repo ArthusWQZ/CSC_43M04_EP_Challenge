@@ -1,0 +1,14 @@
+# @package _global_
+# CNN + Temporal Transformer — Track 1 (Closed World, trained from scratch)
+defaults:
+  - override /model: cnn_temporal_transformer
+
+training:
+  epochs: 40
+  lr: 7.0e-4
+  batch_size: 96
+  use_compile: true
+  checkpoint_path: cnn_temporal_transformer.pt
+
+dataset:
+  augmentation: strong

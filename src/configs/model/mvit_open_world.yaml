@@ -1,0 +1,5 @@
+# @package _global_
+model:
+  name: mvit_open_world
+  pretrained: true
+  num_classes: ${num_classes}

@@ -37,7 +37,14 @@ def load_model_from_checkpoint(checkpoint: Dict[str, Any], device: torch.device)
         )
     cfg = OmegaConf.create(checkpoint["config"])
     model = build_model(cfg)
-    model.load_state_dict(checkpoint["model_state_dict"])
+
+    state_dict = checkpoint["model_state_dict"]
+    # torch.compile wraps the model and prefixes every key with "_orig_mod."
+    # Strip the prefix so the state dict loads into the uncompiled model.
+    if any(k.startswith("_orig_mod.") for k in state_dict):
+        state_dict = {k.removeprefix("_orig_mod."): v for k, v in state_dict.items()}
+
+    model.load_state_dict(state_dict)
     model.to(device)
     model.eval()
     return model
@@ -59,9 +66,19 @@ def main(cfg: DictConfig) -> None:
     raw: Dict[str, Any] = torch.load(checkpoint_path, map_location=device)
     model = load_model_from_checkpoint(raw, device)
 
-    # Normalization must match how the checkpoint was trained (ImageNet stats if pretrained).
-    pretrained_used = bool(raw.get("pretrained", cfg.model.pretrained))
-    eval_transform = build_transforms(is_training=False, use_imagenet_norm=pretrained_used)
+    # Use the config stored in the checkpoint so normalization, augmentation, and
+    # sampling mode all match exactly what was used during training.
+    ckpt_cfg = OmegaConf.create(raw["config"])
+    pretrained_used = bool(raw.get("pretrained", ckpt_cfg.model.pretrained))
+    augmentation = str(ckpt_cfg.dataset.get("augmentation", "standard"))
+    normalization = str(ckpt_cfg.dataset.get("normalization", "imagenet" if pretrained_used else "default"))
+    sampling = str(ckpt_cfg.dataset.get("sampling", "uniform"))
+    eval_transform = build_transforms(
+        is_training=False,
+        use_imagenet_norm=pretrained_used,
+        augmentation=augmentation,
+        normalization=normalization,
+    )
 
     val_dir = Path(cfg.dataset.val_dir).resolve()
     val_samples = collect_video_samples(val_dir)
@@ -70,13 +87,14 @@ def main(cfg: DictConfig) -> None:
     if max_samples is not None:
         val_samples = val_samples[: int(max_samples)]
 
-    num_frames = int(raw.get("num_frames", cfg.dataset.num_frames))
+    num_frames = int(raw.get("num_frames", ckpt_cfg.dataset.num_frames))
 
     val_dataset = VideoFrameDataset(
         root_dir=val_dir,
         num_frames=num_frames,
         transform=eval_transform,
         sample_list=val_samples,
+        sampling=sampling,
     )
 
     val_loader = DataLoader(

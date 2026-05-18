@@ -167,13 +167,25 @@ def main(cfg: DictConfig) -> None:
     print(f"Loading checkpoint: {checkpoint_path}", flush=True)
     ckpt: Dict[str, Any] = torch.load(checkpoint_path, map_location="cpu")
     model = build_model_from_checkpoint(ckpt)
-    model.load_state_dict(ckpt["model_state_dict"])
+    state_dict = ckpt["model_state_dict"]
+    if any(k.startswith("_orig_mod.") for k in state_dict):
+        state_dict = {k.removeprefix("_orig_mod."): v for k, v in state_dict.items()}
+    model.load_state_dict(state_dict)
     model.to(device)
     print(f"Model on device: {device}", flush=True)
 
+    ckpt_cfg = OmegaConf.create(ckpt["config"]) if "config" in ckpt and ckpt["config"] else None
     num_frames = int(ckpt.get("num_frames", cfg.dataset.num_frames))
     pretrained = bool(ckpt.get("pretrained", cfg.model.pretrained))
-    eval_transform = build_transforms(is_training=False, use_imagenet_norm=pretrained)
+    augmentation = str(ckpt_cfg.dataset.get("augmentation", "standard")) if ckpt_cfg else "standard"
+    normalization = str(ckpt_cfg.dataset.get("normalization", "imagenet" if pretrained else "default")) if ckpt_cfg else ("imagenet" if pretrained else "default")
+    sampling = str(ckpt_cfg.dataset.get("sampling", "uniform")) if ckpt_cfg else "uniform"
+    eval_transform = build_transforms(
+        is_training=False,
+        use_imagenet_norm=pretrained,
+        augmentation=augmentation,
+        normalization=normalization,
+    )
 
     test_root = Path(cfg.dataset.test_dir).resolve()
     output_path = Path(cfg.dataset.submission_output).resolve()
@@ -206,6 +218,7 @@ def main(cfg: DictConfig) -> None:
         num_frames=num_frames,
         transform=eval_transform,
         sample_list=sample_list,
+        sampling=sampling,
     )
     batch_size = int(cfg.training.batch_size)
     loader = DataLoader(

@@ -26,15 +26,34 @@ def build_transforms(
     image_size: int = 224,
     is_training: bool = True,
     use_imagenet_norm: bool = True,
+    augmentation: str = "standard",
+    normalization: str = "imagenet",
 ) -> transforms.Compose:
     """
     Standard torchvision pipeline for single RGB frames.
 
-    use_imagenet_norm:
-        True  -> mean/std from ImageNet (usual when pretrained=True)
-        False -> still scale to [0,1]; you can swap norms if you prefer
+    normalization:
+        "imagenet" -> ImageNet mean/std (pretrained image models)
+        "kinetics" -> Kinetics mean/std (required for MViT-v2 pretrained on Kinetics)
+        "default"  -> [0.5, 0.5, 0.5] normalisation
+
+    augmentation (training only):
+        "standard"     -> Resize only (no horizontal flip: dataset has direction-sensitive classes)
+        "strong"       -> RandomResizedCrop + ColorJitter + RandomGrayscale
+        "very_strong"  -> strong + RandAugment + RandomErasing
+
+    Note: RandomHorizontalFlip is intentionally absent from all modes.
+    The dataset contains direction-sensitive action classes (e.g. "moving left" ≠
+    "moving right"), and transforms are applied per-frame independently, so a
+    consistent flip across frames cannot be guaranteed.  Enabling hflip would
+    corrupt labels for direction-sensitive classes.
     """
-    if use_imagenet_norm:
+    if normalization == "kinetics":
+        normalize = transforms.Normalize(
+            mean=[0.45, 0.45, 0.45],
+            std=[0.225, 0.225, 0.225],
+        )
+    elif use_imagenet_norm or normalization == "imagenet":
         normalize = transforms.Normalize(
             mean=[0.485, 0.456, 0.406],
             std=[0.229, 0.224, 0.225],
@@ -43,15 +62,51 @@ def build_transforms(
         normalize = transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
 
     if is_training:
+        if augmentation == "very_strong":
+            return transforms.Compose(
+                [
+                    transforms.RandomResizedCrop(image_size, scale=(0.4, 1.0)),
+                    transforms.ColorJitter(
+                        brightness=0.4, contrast=0.4, saturation=0.4, hue=0.1
+                    ),
+                    transforms.RandomGrayscale(p=0.1),
+                    transforms.RandAugment(num_ops=2, magnitude=9),
+                    transforms.ToTensor(),
+                    normalize,
+                    transforms.RandomErasing(p=0.25),
+                ]
+            )
+        if augmentation == "strong":
+            return transforms.Compose(
+                [
+                    transforms.RandomResizedCrop(image_size, scale=(0.5, 1.0)),
+                    transforms.ColorJitter(
+                        brightness=0.4, contrast=0.4, saturation=0.4, hue=0.1
+                    ),
+                    transforms.RandomGrayscale(p=0.1),
+                    transforms.ToTensor(),
+                    normalize,
+                ]
+            )
+        # "standard"
         return transforms.Compose(
             [
                 transforms.Resize((image_size, image_size)),
-                transforms.RandomHorizontalFlip(),
                 transforms.ToTensor(),
                 normalize,
             ]
         )
 
+    # Eval: standard uses plain resize; strong/very_strong uses resize+centercrop (ImageNet protocol)
+    if augmentation in ("strong", "very_strong"):
+        return transforms.Compose(
+            [
+                transforms.Resize(int(image_size * 256 / 224)),
+                transforms.CenterCrop(image_size),
+                transforms.ToTensor(),
+                normalize,
+            ]
+        )
     return transforms.Compose(
         [
             transforms.Resize((image_size, image_size)),
